@@ -1,4 +1,44 @@
-<!DOCTYPE html>
+
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
@@ -18,40 +58,20 @@
             margin: 20px auto;
             width: 600px;
             padding: 20px;
-            background-color: transparent;
+            background-color: #ffffff; /* コンテナ背景を白色に固定 */
             border-radius: 10px;
             box-shadow: 0 0 10px rgba(0,0,0,0.2);
             position: relative;
-            background-size: cover;
-            background-position: center;
-            background-repeat: no-repeat;
         }
-        #game-container::before, #editor-container::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: -1;
-            border-radius: 10px;
-        }
-        .container-background-video {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            z-index: -1;
-            border-radius: 10px;
-        }
-        /* #track 関連のスタイルを削除 */
+        /* コンテナ背景動画のスタイルを削除 */
         #question {
             font-size: 36px;
             font-weight: bold;
             margin: 20px 0;
             text-shadow: 0 0 6px rgba(255, 255, 255, 0.9);
+            background: rgba(255, 255, 255, 0.7);
+            padding: 5px 10px;
+            border-radius: 5px;
         }
         #stage {
             width: 500px;
@@ -78,6 +98,9 @@
             font-size: 14px;
             color: #333;
             text-shadow: 0 0 6px rgba(255, 255, 255, 0.9);
+            background: rgba(255, 255, 255, 0.7);
+            padding: 2px 8px;
+            border-radius: 5px;
         }
         .option {
             margin: 10px;
@@ -99,6 +122,9 @@
             font-size: 20px;
             margin: 20px 0;
             text-shadow: 0 0 6px rgba(255, 255, 255, 0.9);
+            background: rgba(255, 255, 255, 0.7);
+            padding: 5px 10px;
+            border-radius: 5px;
         }
         #restart {
             display: none;
@@ -212,7 +238,6 @@
             <div id="progress-bar"></div>
             <div id="progress-text"></div>
         </div>
-        <!-- #track 要素を削除 -->
         <div id="question"></div>
         <button class="option" onclick="answer(0)"></button>
         <button class="option" onclick="answer(1)"></button>
@@ -230,7 +255,7 @@
             <option value="1">選択肢2が正解</option>
         </select>
         <div class="image-input-group">
-            <label>問題の背景メディア</label>
+            <label>問題のコンテナ背景メディア</label>
             <input type="file" id="question-media" accept="image/*,video/mp4,video/webm">
             <div id="question-media-preview" class="image-preview"></div>
         </div>
@@ -240,13 +265,13 @@
         <div id="question-list"></div>
         <h2>背景メディア編集（ゲーム終了時）</h2>
         <div class="image-input-group">
-            <label>クリア背景</label>
+            <label>クリア時のコンテナ背景</label>
             <input type="file" id="track-success" accept="image/*,video/mp4,video/webm">
             <div id="track-success-preview" class="image-preview"></div>
             <button onclick="updateTrackSuccess()">クリア背景を更新</button>
         </div>
         <div class="image-input-group">
-            <label>ゲームオーバー背景</label>
+            <label>ゲームオーバー時のコンテナ背景</label>
             <input type="file" id="track-failure" accept="image/*,video/mp4,video/webm">
             <div id="track-failure-preview" class="image-preview"></div>
             <button onclick="updateTrackFailure()">ゲームオーバー背景を更新</button>
@@ -260,7 +285,7 @@
         </div>
         <h2>コンテナ背景編集</h2>
         <div class="image-input-group">
-            <label>ゲーム/エディタコンテナの背景</label>
+            <label>エディタコンテナの背景</label>
             <input type="file" id="container-background" accept="image/*,video/mp4,video/webm">
             <div id="container-background-preview" class="image-preview"></div>
             <button onclick="updateContainerBackground()">コンテナ背景を更新</button>
@@ -343,7 +368,6 @@
             localStorage.setItem('trolleyImages', JSON.stringify(images));
             applyEndGameMedia();
             applyBodyBackground();
-            applyContainerBackground();
         }
 
         function applyEndGameMedia() {
@@ -373,33 +397,6 @@
             } else if (images.bodyBackground.mediaType === 'image') {
                 body.style.backgroundImage = `url('${images.bodyBackground.media}')`;
             }
-        }
-
-        function applyContainerBackground() {
-            const containers = [document.getElementById('game-container'), document.getElementById('editor-container')];
-            containers.forEach(container => {
-                if (!container) return;
-                const existingVideo = container.querySelector('.container-background-video');
-                if (existingVideo) existingVideo.remove();
-                container.style.backgroundImage = '';
-                if (images.containerBackground.mediaType === 'video') {
-                    const video = document.createElement('video');
-                    video.className = 'container-background-video';
-                    video.src = images.containerBackground.media;
-                    video.autoplay = true;
-                    video.loop = true;
-                    video.muted = true;
-                    video.playsinline = true;
-                    video.addEventListener('error', () => {
-                        console.error('Container background video failed to load');
-                        container.style.backgroundImage = `url('${defaultMedia.containerBackground.media}')`;
-                    });
-                    video.addEventListener('canplay', () => video.play());
-                    container.appendChild(video);
-                } else if (images.containerBackground.mediaType === 'image') {
-                    container.style.backgroundImage = `url('${images.containerBackground.media}')`;
-                }
-            });
         }
 
         function loadMedia(file, defaultMedia) {
@@ -449,7 +446,7 @@
                         saveImages();
                     }
                     if (callback) callback(result);
-                    alert(`${mediaKey === 'trackSuccess' ? 'クリア背景' : mediaKey === 'trackFailure' ? 'ゲームオーバー背景' : mediaKey === 'bodyBackground' ? 'ゲーム全体の背景' : 'コンテナ背景'}を更新しました！`);
+                    alert(`${mediaKey === 'trackSuccess' ? 'クリア時のコンテナ背景' : mediaKey === 'trackFailure' ? 'ゲームオーバー時のコンテナ背景' : mediaKey === 'bodyBackground' ? 'ゲーム全体の背景' : 'エディタコンテナ背景'}を更新しました！`);
                 })
                 .catch(error => {
                     alert(error.message);
@@ -475,11 +472,8 @@
         }
 
         function updateContainerBackground() {
-            updateMedia('container-background', 'container-background-preview', 'containerBackground', (result) => {
-                images.containerBackground = { media: result.media, mediaType: result.mediaType };
-                saveImages();
-                applyContainerBackground();
-            });
+            updateMedia('container-background', 'container-background-preview', 'containerBackground');
+            // コンテナ背景は白色固定のため、適用処理は不要
         }
 
         async function saveQuestion() {
@@ -635,49 +629,6 @@
                 document.getElementById('restart').style.display = 'block';
                 document.getElementById('stage').style.display = 'none';
                 document.removeEventListener('keydown', handleKeyPress);
-                // ゲームクリア時の背景メディア適用
-                applyEndGameMediaToBody();
-            }
-        }
-
-        // ゲームクリア/ゲームオーバー時に body に背景を適用する関数を追加
-        function applyEndGameMediaToBody() {
-            const body = document.body;
-            const existingVideo = document.getElementById('body-background-video');
-            if (existingVideo) existingVideo.remove();
-            body.style.backgroundImage = '';
-            if (currentQuestion >= 5 && images.trackSuccess.mediaType === 'video') {
-                const video = document.createElement('video');
-                video.id = 'body-background-video';
-                video.src = images.trackSuccess.media;
-                video.autoplay = true;
-                video.loop = true;
-                video.muted = true;
-                video.playsinline = true;
-                video.addEventListener('error', () => {
-                    console.error('Success video failed to load');
-                    body.style.backgroundImage = `url('${defaultMedia.trackSuccess.media}')`;
-                });
-                video.addEventListener('canplay', () => video.play());
-                body.appendChild(video);
-            } else if (currentQuestion >= 5) {
-                body.style.backgroundImage = `url('${images.trackSuccess.media}')`;
-            } else if (images.trackFailure.mediaType === 'video') {
-                const video = document.createElement('video');
-                video.id = 'body-background-video';
-                video.src = images.trackFailure.media;
-                video.autoplay = true;
-                video.loop = true;
-                video.muted = true;
-                video.playsinline = true;
-                video.addEventListener('error', () => {
-                    console.error('Failure video failed to load');
-                    body.style.backgroundImage = `url('${defaultMedia.trackFailure.media}')`;
-                });
-                video.addEventListener('canplay', () => video.play());
-                body.appendChild(video);
-            } else {
-                body.style.backgroundImage = `url('${images.trackFailure.media}')`;
             }
         }
 
@@ -709,7 +660,6 @@
                 document.getElementsByClassName('option')[1].style.display = 'none';
                 document.getElementById('restart').style.display = 'block';
                 document.getElementById('stage').style.display = 'none';
-                applyEndGameMediaToBody();
             }
         }
 
@@ -727,7 +677,6 @@
 
         applyEndGameMedia();
         applyBodyBackground();
-        applyContainerBackground();
         updateQuestionList();
         startGame();
     </script>
