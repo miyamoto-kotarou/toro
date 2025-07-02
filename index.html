@@ -1,684 +1,569 @@
-
-<script type="text/javascript">
-        var gk_isXlsx = false;
-        var gk_xlsxFileLookup = {};
-        var gk_fileData = {};
-        function filledCell(cell) {
-          return cell !== '' && cell != null;
-        }
-        function loadFileData(filename) {
-        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
-            try {
-                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
-                var firstSheetName = workbook.SheetNames[0];
-                var worksheet = workbook.Sheets[firstSheetName];
-
-                // Convert sheet to JSON to filter blank rows
-                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
-                // Filter out blank rows (rows where all cells are empty, null, or undefined)
-                var filteredData = jsonData.filter(row => row.some(filledCell));
-
-                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
-                var headerRowIndex = filteredData.findIndex((row, index) =>
-                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
-                );
-                // Fallback
-                if (headerRowIndex === -1 || headerRowIndex > 25) {
-                  headerRowIndex = 0;
-                }
-
-                // Convert filtered JSON back to CSV
-                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
-                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
-                return csv;
-            } catch (e) {
-                console.error(e);
-                return "";
-            }
-        }
-        return gk_fileData[filename] || "";
-        }
-        </script><!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>問題＆背景メディア変更可能</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            background-color: #f0f0f0;
-            background-size: cover;
-            background-position: center;
-            background-repeat: no-repeat;
-            transition: background-image 0.5s ease;
-        }
-        #game-container, #editor-container {
-            margin: 20px auto;
-            width: 600px;
-            padding: 20px;
-            background-color: #ffffff; /* コンテナ背景を白色に固定 */
-            border-radius: 10px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.2);
-            position: relative;
-        }
-        /* コンテナ背景動画のスタイルを削除 */
-        #question {
-            font-size: 36px;
-            font-weight: bold;
-            margin: 20px 0;
-            text-shadow: 0 0 6px rgba(255, 255, 255, 0.9);
-            background: rgba(255, 255, 255, 0.7);
-            padding: 5px 10px;
-            border-radius: 5px;
-        }
-        #stage {
-            width: 500px;
-            height: 20px;
-            margin: 10px auto;
-            background-color: #e0e0e0;
-            border-radius: 10px;
-            overflow: hidden;
-            position: relative;
-            box-shadow: 0 0 5px rgba(0,0,0,0.2);
-        }
-        #progress-bar {
-            height: 100%;
-            background-color: #28a745;
-            width: 0%;
-            transition: width 0.5s ease-in-out;
-            border-radius: 10px;
-        }
-        #progress-text {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 14px;
-            color: #333;
-            text-shadow: 0 0 6px rgba(255, 255, 255, 0.9);
-            background: rgba(255, 255, 255, 0.7);
-            padding: 2px 8px;
-            border-radius: 5px;
-        }
-        .option {
-            margin: 10px;
-            padding: 16px 32px;
-            font-size: 32px;
-            cursor: pointer;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            min-width: 250px;
-            min-height: 80px;
-            text-shadow: 0 0 6px rgba(0, 0, 0, 0.9);
-        }
-        .option:hover {
-            background-color: #0056b3;
-        }
-        #result {
-            font-size: 20px;
-            margin: 20px 0;
-            text-shadow: 0 0 6px rgba(255, 255, 255, 0.9);
-            background: rgba(255, 255, 255, 0.7);
-            padding: 5px 10px;
-            border-radius: 5px;
-        }
-        #restart {
-            display: none;
-            padding: 10px 20px;
-            font-size: 18px;
-            cursor: pointer;
-            background-color: #28a745;
-            color: white;
-            border: none;
-            border-radius: 5px;
-        }
-        #restart:hover {
-            background-color: #218838;
-        }
-        #editor-container {
-            display: none;
-        }
-        #question-list {
-            text-align: left;
-            max-height: 200px;
-            overflow-y: auto;
-            margin: 10px 0;
-        }
-        .question-item {
-            margin: 5px 0;
-            padding: 5px;
-            background-color: #f8f9fa;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .question-item button {
-            background-color: #dc3545;
-            color: white;
-            border: none;
-            padding: 5px 10px;
-            cursor: pointer;
-            border-radius: 3px;
-            margin-left: 5px;
-        }
-        .question-item button.edit {
-            background-color: #007bff;
-        }
-        .question-item button:hover {
-            background-color: #c82333;
-        }
-        .question-item button.edit:hover {
-            background-color: #0056b3;
-        }
-        input, select {
-            margin: 5px;
-            padding: 5px;
-            width: 80%;
-        }
-        #toggle-editor, #save-btn, #save-edit-btn {
-            margin: 10px;
-            padding: 10px 20px;
-            font-size: 16px;
-            cursor: pointer;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 5px;
-        }
-        #toggle-editor:hover, #save-btn:hover, #save-edit-btn:hover {
-            background-color: #0056b3;
-        }
-        #save-edit-btn {
-            display: none;
-        }
-        .image-preview {
-            width: 100px;
-            height: 60px;
-            background-size: contain;
-            background-repeat: no-repeat;
-            background-position: center;
-            border: 1px solid #ccc;
-            margin: 10px auto;
-            position: relative;
-        }
-        .video-preview {
-            width: 100px;
-            height: 60px;
-            margin: 10px auto;
-            border: 1px solid #ccc;
-        }
-        .image-input-group, .video-input-group {
-            margin: 10px 0;
-        }
-        #body-background-video {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            z-index: -1;
-        }
-        .image-input-group label::after {
-            content: '（mp4またはwebm形式の動画、または画像を推奨）';
-            font-size: 12px;
-            color: #666;
-            display: block;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>画面デザイン</title>
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-    <div id="game-container">
-        <button id="toggle-editor" onclick="toggleEditor()">問題＆背景メディア編集</button>
-        <div id="stage">
-            <div id="progress-bar"></div>
-            <div id="progress-text"></div>
-        </div>
-        <div id="question"></div>
-        <button class="option" onclick="answer(0)"></button>
-        <button class="option" onclick="answer(1)"></button>
-        <div id="result"></div>
-        <button id="restart" onclick="startGame()">もう一度挑戦</button>
+<body class="bg-gray-900 text-white font-sans min-h-screen flex flex-col items-center justify-center p-4 relative">
+  <!-- 背景動画 -->
+  <video
+    id="background-video"
+    autoplay
+    loop
+    muted
+    class="absolute top-0 left-0 w-full h-full object-cover opacity-30 z-0 hidden"
+  >
+    <source id="video-source" src="https://cdn.pixabay.com/video/2023/07/27/172050-848745094_large.mp4" type="video/mp4" />
+  </video>
+  <!-- 背景画像 -->
+  <img
+    id="background-image"
+    src=""
+    class="absolute top-0 left-0 w-full h-full object-cover opacity-30 z-0 hidden"
+    alt="カスタマイズ可能なクイズインターフェースの背景画像"
+  />
+  <!-- エラーメッセージ -->
+  <p id="media-error" class="text-red-500 absolute top-0 left-0 w-full text-center hidden z-10">
+    メディアを読み込めません。MP4動画またはJPG/PNG/GIF画像を選択してください。
+  </p>
+
+  <!-- クイズ表示 -->
+  <div class="bg-gray-800 p-8 rounded-lg shadow-lg w-full max-w-3xl text-center z-10">
+    <h2 id="question-display" class="text-2xl mb-6 font-semibold">問題 1: 地球上で最大の大陸は？</h2>
+    <!-- 正解メッセージ -->
+    <div id="correct-message" class="text-center hidden mb-6">
+      <p class="text-3xl font-bold text-green-500 bg-gray-800 px-6 py-2 rounded-lg shadow-md">
+        正解
+      </p>
     </div>
-
-    <div id="editor-container">
-        <h2>問題編集</h2>
-        <input type="text" id="new-question" placeholder="問題文を入力">
-        <input type="text" id="option1" placeholder="選択肢1">
-        <input type="text" id="option2" placeholder="選択肢2">
-        <select id="correct-answer">
-            <option value="0">選択肢1が正解</option>
-            <option value="1">選択肢2が正解</option>
-        </select>
-        <div class="image-input-group">
-            <label>問題のコンテナ背景メディア</label>
-            <input type="file" id="question-media" accept="image/*,video/mp4,video/webm">
-            <div id="question-media-preview" class="image-preview"></div>
-        </div>
-        <button id="save-btn" onclick="saveQuestion()">保存</button>
-        <button id="save-edit-btn" onclick="saveQuestion()">編集を保存</button>
-        <h3>現在の問題一覧</h3>
-        <div id="question-list"></div>
-        <h2>背景メディア編集（ゲーム終了時）</h2>
-        <div class="image-input-group">
-            <label>クリア時のコンテナ背景</label>
-            <input type="file" id="track-success" accept="image/*,video/mp4,video/webm">
-            <div id="track-success-preview" class="image-preview"></div>
-            <button onclick="updateTrackSuccess()">クリア背景を更新</button>
-        </div>
-        <div class="image-input-group">
-            <label>ゲームオーバー時のコンテナ背景</label>
-            <input type="file" id="track-failure" accept="image/*,video/mp4,video/webm">
-            <div id="track-failure-preview" class="image-preview"></div>
-            <button onclick="updateTrackFailure()">ゲームオーバー背景を更新</button>
-        </div>
-        <h2>ゲーム全体の背景編集</h2>
-        <div class="image-input-group">
-            <label>ゲーム全体の背景</label>
-            <input type="file" id="body-background" accept="image/*,video/mp4,video/webm">
-            <div id="body-background-preview" class="image-preview"></div>
-            <button onclick="updateBodyBackground()">背景を更新</button>
-        </div>
-        <h2>コンテナ背景編集</h2>
-        <div class="image-input-group">
-            <label>エディタコンテナの背景</label>
-            <input type="file" id="container-background" accept="image/*,video/mp4,video/webm">
-            <div id="container-background-preview" class="image-preview"></div>
-            <button onclick="updateContainerBackground()">コンテナ背景を更新</button>
-        </div>
+    <!-- 全問正解メッセージ -->
+    <div id="complete-message" class="text-center hidden mb-6">
+      <p class="text-3xl font-bold text-green-500 bg-gray-800 px-6 py-2 rounded-lg shadow-md">
+        全問正解！
+      </p>
     </div>
+    <!-- ゲームオーバーメッセージ -->
+    <div id="game-over" class="text-center hidden mb-6">
+      <p class="text-3xl font-bold text-red-500 bg-gray-800 px-6 py-2 rounded-lg shadow-md mb-4">
+        ゲームオーバー
+      </p>
+      <button id="try-again" class="bg-blue-600 hover:bg-blue-800 text-white font-bold py-2 px-4 rounded-lg">
+        もう一度挑戦
+      </button>
+    </div>
+    <div class="flex justify-around gap-4">
+      <button id="answer1-btn" class="bg-blue-600 hover:bg-blue-800 text-white font-bold py-5 px-8 rounded-lg text-2xl w-[48%]">
+        アフリカ
+      </button>
+      <button id="answer2-btn" class="bg-blue-600 hover:bg-blue-800 text-white font aspett-bold py-5 px-8 rounded-lg text-2xl w-[48%]">
+        ユーラシア大陸
+      </button>
+    </div>
+  </div>
 
-    <script>
-        let questions = JSON.parse(localStorage.getItem('trolleyQuestions')) || [
-            {
-                question: "日本の首都は？",
-                options: ["東京", "大阪"],
-                correct: 0,
-                media: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPh/AAAA/wAD/6X4KAAAAABJRU5ErkJggg==',
-                mediaType: 'image'
-            },
-            {
-                question: "太陽系で最も大きな惑星は？",
-                options: ["地球", "木星"],
-                correct: 1,
-                media: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPh/AAAA/wAD/6X4KAAAAABJRU5ErkJggg==',
-                mediaType: 'image'
-            },
-            {
-                question: "「ハリー・ポッター」の作者は？",
-                options: ["J.K.ローリング", "J.R.R.トールキン"],
-                correct: 0,
-                media: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPh/AAAA/wAD/6X4KAAAAABJRU5ErkJggg==',
-                mediaType: 'image'
-            },
-            {
-                question: "日本の国鳥は？",
-                options: ["ツバメ", "キジ"],
-                correct: 1,
-                media: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPh/AAAA/wAD/6X4KAAAAABJRU5ErkJggg==',
-                mediaType: 'image'
-            },
-            {
-                question: "ピラミッドで有名な国は？",
-                options: ["エジプト", "ブラジル"],
-                correct: 0,
-                media: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPh/AAAA/wAD/6X4KAAAAABJRU5ErkJggg==',
-                mediaType: 'image'
-            }
-        ];
+  <!-- 設定変更ボタン（クイズ表示の下に配置） -->
+  <div class="w-full max-w-3xl mt-6 z-10 flex justify-center">
+    <button
+      id="toggle-settings-form"
+      class="bg-blue-600 hover:bg-blue-800 text-white font-bold py-2 px-4 rounded-lg"
+    >
+      設定を変更
+    </button>
+  </div>
+  <!-- 設定変更フォーム -->
+  <div id="settings-form" class="w-full max-w-3xl hidden mt-6 z-10">
+    <!-- 背景変更セクション -->
+    <h3 class="text-lg font-medium mb-4 text-center">背景を変更</h3>
+    <label for="media-file" class="block text-lg font-medium mb-2 text-center">背景動画または画像を選択（MP4/JPG/PNG/GIF）:</label>
+    <div class="flex gap-2 mb-6">
+      <input
+        id="media-file"
+        type="file"
+        accept="video/mp4,image/jpeg,image/png,image/gif"
+        class="w-full p-2 rounded-lg bg-gray-700 text-white border border-gray-500 focus:outline-none focus:border-blue-500"
+      >
+      <button
+        id="change-media"
+        class="bg-blue-600 hover:bg-blue-800 text-white font-bold py-2 px-4 rounded-lg"
+      >
+        変更
+      </button>
+    </div>
+    <!-- 問題変更セクション -->
+    <h3 class="text-lg font-medium mb-4 text-center">問題を変更</h3>
+    <div class="flex gap-2 mb-4 justify-center">
+      <input
+        id="import-questions"
+        type="file"
+        accept="application/json"
+        class="p-2 rounded-lg bg-gray-700 text-white border border-gray-500 focus:outline-none focus:border-blue-500"
+      >
+      <input
+        id="import-background"
+        type="file"
+        accept="video/mp4,image/jpeg,image/png,image/gif"
+        class="p-2 rounded-lg bg-gray-700 text-white border border-gray-500 focus:outline-none focus:border-blue-500 hidden"
+      >
+      <button
+        id="export-questions"
+        class="bg-blue-600 hover:bg-blue-800 text-white font-bold py-2 px-4 rounded-lg"
+      >
+        問題と背景をエクスポート
+      </button>
+    </div>
+    <div id="question-list" class="mb-6">
+      <!-- 問題一覧はJavaScriptで動的に生成 -->
+    </div>
+    <label for="question-number" class="block text-lg font-medium mb-2 text-center">変更する問題番号を選択:</label>
+    <select id="question-number" class="w-full p-2 mb-4 rounded-lg bg-gray-700 text-white border border-gray-500 focus:outline-none focus:border-blue-500">
+      <option value="0">問題 1</option>
+      <option value="1">問題 2</option>
+      <option value="2">問題 3</option>
+      <option value="3">問題 4</option>
+      <option value="4">問題 5</option>
+    </select>
+    <label for="question-text" class="block text-lg font-medium mb-2 text-center">新しい問題を入力:</label>
+    <input
+      id="question-text"
+      type="text"
+      placeholder="例: 地球上で最大の大陸は？"
+      class="w-full p-2 mb-4 rounded-lg bg-gray-700 text-white border border-gray-500 focus:outline-none focus:border-blue-500"
+    >
+    <label for="answer1-text" class="block text-lg font-medium mb-2 text-center">選択肢1（左）:</label>
+    <input
+      id="answer1-text"
+      type="text"
+      placeholder="例: アフリカ"
+      class="w-full p-2 mb-4 rounded-lg bg-gray-700 text-white border border-gray-500 focus:outline-none focus:border-blue-500"
+    >
+    <label for="answer2-text" class="block text-lg font-medium mb-2 text-center">選択肢2（右）:</label>
+    <input
+      id="answer2-text"
+      type="text"
+      placeholder="例: ユーラシア大陸"
+      class="w-full p-2 mb-4 rounded-lg bg-gray-700 text-white border border-gray-500 focus:outline-none focus:border-blue-500"
+    >
+    <label class="block text-lg font-medium mb-2 text-center">正解を選択:</label>
+    <div class="flex justify-center gap-4 mb-4">
+      <label><input type="radio" name="correct-answer" value="1" checked> 選択肢1</label>
+      <label><input type="radio" name="correct-answer" value="2"> 選択肢2</label>
+    </div>
+    <button
+      id="change-question"
+      class="bg-blue-600 hover:bg-blue-800 text-white font-bold py-2 px-4 rounded-lg w-full"
+    >
+      問題を更新
+    </button>
+  </div>
 
-        const defaultMedia = {
-            trackSuccess: {
-                media: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEAwI3O6cAAAAASUVORK5CYII=',
-                mediaType: 'image'
-            },
-            trackFailure: {
-                media: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPj/HwAD/QFe4ZxWAAAAAElFTkSuQmCC',
-                mediaType: 'image'
-            },
-            defaultMedia: {
-                media: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPh/AAAA/wAD/6X4KAAAAABJRU5ErkJggg==',
-                mediaType: 'image'
-            },
-            bodyBackground: {
-                media: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPh/AAAA/wAD/6X4KAAAAABJRU5ErkJggg==',
-                mediaType: 'image'
-            },
-            containerBackground: {
-                media: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z/CfAQAGIAB9Kce/AAAAAElFTkSuQmCC',
-                mediaType: 'image'
-            }
-        };
+  <!-- メディア変更およびクイズスクリプト -->
+  <script>
+    const video = document.getElementById('background-video');
+    const videoSource = document.getElementById('video-source');
+    const image = document.getElementById('background-image');
+    const mediaError = document.getElementById('media-error');
+    const mediaFileInput = document.getElementById('media-file');
+    const changeMediaButton = document.getElementById('change-media');
+    const toggleSettingsFormButton = document.getElementById('toggle-settings-form');
+    const settingsForm = document.getElementById('settings-form');
+    const questionList = document.getElementById('question-list');
+    const questionNumberSelect = document.getElementById('question-number');
+    const questionTextInput = document.getElementById('question-text');
+    const answer1TextInput = document.getElementById('answer1-text');
+    const answer2TextInput = document.getElementById('answer2-text');
+    const changeQuestionButton = document.getElementById('change-question');
+    const importQuestionsInput = document.getElementById('import-questions');
+    const importBackgroundInput = document.getElementById('import-background');
+    const exportQuestionsButton = document.getElementById('export-questions');
+    const questionDisplay = document.getElementById('question-display');
+    const answer1Button = document.getElementById('answer1-btn');
+    const answer2Button = document.getElementById('answer2-btn');
+    const gameOverMessage = document.getElementById('game-over');
+    const tryAgainButton = document.getElementById('try-again');
+    const correctMessage = document.getElementById('correct-message');
+    const completeMessage = document.getElementById('complete-message');
 
-        let images = JSON.parse(localStorage.getItem('trolleyImages')) || defaultMedia;
-        let currentQuestion = 0;
-        let usedQuestions = [];
-        let editingIndex = -1;
+    // 問題データの初期化
+    let questions = [
+      { question: "地球上で最大の大陸は？", answer1: "アフリカ", answer2: "ユーラシア大陸", correctAnswer: 2 },
+      { question: "日本の首都は？", answer1: "東京", answer2: "大阪", correctAnswer: 1 },
+      { question: "1+1は？", answer1: "2", answer2: "11", correctAnswer: 1 },
+      { question: "太陽系の惑星の数は？", answer1: "8", answer2: "9", correctAnswer: 1 },
+      { question: "世界で最も高い山は？", answer1: "エベレスト", answer2: "富士山", correctAnswer: 1 }
+    ];
+    let currentQuestionIndex = 0;
+    let isGameOver = false;
+    let currentBackground = { type: 'video', fileName: 'default.mp4' }; // 初期背景情報
 
-        function saveQuestions() {
-            localStorage.setItem('trolleyQuestions', JSON.stringify(questions));
-            updateQuestionList();
-        }
+    // デフォルトで動画を表示、設定フォームは非表示
+    video.classList.remove('hidden');
+    settingsForm.classList.add('hidden');
 
-        function saveImages() {
-            localStorage.setItem('trolleyImages', JSON.stringify(images));
-            applyEndGameMedia();
-            applyBodyBackground();
-        }
+    // メディア変更処理
+    changeMediaButton.addEventListener('click', () => {
+      const file = mediaFileInput.files[0];
+      if (!file) {
+        mediaError.textContent = 'ファイルを選択してください。';
+        mediaError.classList.remove('hidden');
+        return;
+      }
 
-        function applyEndGameMedia() {
-            applyMedia('track-success-preview', images.trackSuccess.media, images.trackSuccess.mediaType);
-            applyMedia('track-failure-preview', images.trackFailure.media, images.trackFailure.mediaType);
-        }
+      const fileType = file.type;
+      const fileURL = URL.createObjectURL(file);
 
-        function applyBodyBackground() {
-            const body = document.body;
-            const existingVideo = document.getElementById('body-background-video');
-            if (existingVideo) existingVideo.remove();
-            body.style.backgroundImage = '';
-            if (images.bodyBackground.mediaType === 'video') {
-                const video = document.createElement('video');
-                video.id = 'body-background-video';
-                video.src = images.bodyBackground.media;
-                video.autoplay = true;
-                video.loop = true;
-                video.muted = true;
-                video.playsinline = true;
-                video.addEventListener('error', () => {
-                    console.error('Body background video failed to load');
-                    body.style.backgroundImage = `url('${defaultMedia.bodyBackground.media}')`;
-                });
-                video.addEventListener('canplay', () => video.play());
-                body.appendChild(video);
-            } else if (images.bodyBackground.mediaType === 'image') {
-                body.style.backgroundImage = `url('${images.bodyBackground.media}')`;
-            }
-        }
-
-        function loadMedia(file, defaultMedia) {
-            return new Promise((resolve, reject) => {
-                if (!file) return resolve(defaultMedia);
-                const reader = new FileReader();
-                const mimeType = file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : null;
-                if (!mimeType) return reject(new Error('サポートされていないメディア形式です。mp4またはwebm形式の動画、または画像を使用してください。'));
-                reader.onload = () => resolve({ media: reader.result, mediaType: mimeType });
-                reader.onerror = () => reject(new Error('メディアの読み込みに失敗しました。'));
-                reader.readAsDataURL(file);
-            });
-        }
-
-        function applyMedia(previewId, media, mediaType) {
-            const preview = document.getElementById(previewId);
-            if (!preview) return;
-            preview.innerHTML = '';
-            if (mediaType === 'video') {
-                const video = document.createElement('video');
-                video.src = media;
-                video.className = 'video-preview';
-                video.autoplay = true;
-                video.loop = true;
-                video.muted = true;
-                video.playsinline = true;
-                video.addEventListener('error', () => {
-                    console.error('Preview video failed to load');
-                    preview.style.backgroundImage = `url('${defaultMedia.defaultMedia.media}')`;
-                });
-                video.addEventListener('canplay', () => video.play());
-                preview.appendChild(video);
-            } else if (mediaType === 'image') {
-                preview.style.backgroundImage = `url('${media}')`;
-            }
-        }
-
-        function updateMedia(inputId, previewId, mediaKey, callback) {
-            const fileInput = document.getElementById(inputId);
-            const file = fileInput.files[0];
-            const defaultSource = mediaKey === 'questionMedia' ? defaultMedia.defaultMedia : images[mediaKey] || defaultMedia[mediaKey] || defaultMedia.defaultMedia;
-            loadMedia(file, defaultSource)
-                .then(result => {
-                    applyMedia(previewId, result.media, result.mediaType);
-                    if (mediaKey !== 'questionMedia') {
-                        images[mediaKey] = { media: result.media, mediaType: result.mediaType };
-                        saveImages();
-                    }
-                    if (callback) callback(result);
-                    alert(`${mediaKey === 'trackSuccess' ? 'クリア時のコンテナ背景' : mediaKey === 'trackFailure' ? 'ゲームオーバー時のコンテナ背景' : mediaKey === 'bodyBackground' ? 'ゲーム全体の背景' : 'エディタコンテナ背景'}を更新しました！`);
-                })
-                .catch(error => {
-                    alert(error.message);
-                    console.error(error);
-                    applyMedia(previewId, defaultSource.media, defaultSource.mediaType);
-                });
-        }
-
-        function updateTrackSuccess() {
-            updateMedia('track-success', 'track-success-preview', 'trackSuccess');
-        }
-
-        function updateTrackFailure() {
-            updateMedia('track-failure', 'track-failure-preview', 'trackFailure');
-        }
-
-        function updateBodyBackground() {
-            updateMedia('body-background', 'body-background-preview', 'bodyBackground', (result) => {
-                images.bodyBackground = { media: result.media, mediaType: result.mediaType };
-                saveImages();
-                applyBodyBackground();
-            });
-        }
-
-        function updateContainerBackground() {
-            updateMedia('container-background', 'container-background-preview', 'containerBackground');
-            // コンテナ背景は白色固定のため、適用処理は不要
-        }
-
-        async function saveQuestion() {
-            const question = document.getElementById('new-question').value.trim();
-            const option1 = document.getElementById('option1').value.trim();
-            const option2 = document.getElementById('option2').value.trim();
-            const correct = parseInt(document.getElementById('correct-answer').value);
-            const questionMediaInput = document.getElementById('question-media');
-
-            if (!question || !option1 || !option2) {
-                alert('問題文と選択肢をすべて入力してください。');
-                return;
-            }
-
-            try {
-                const questionMedia = await loadMedia(
-                    questionMediaInput.files[0],
-                    editingIndex >= 0 ? { media: questions[editingIndex].media, mediaType: questions[editingIndex].mediaType } : defaultMedia.defaultMedia
-                );
-
-                const newQuestion = {
-                    question,
-                    options: [option1, option2],
-                    correct,
-                    media: questionMedia.media,
-                    mediaType: questionMedia.mediaType
-                };
-
-                if (editingIndex >= 0) {
-                    questions[editingIndex] = newQuestion;
-                    editingIndex = -1;
-                    document.getElementById('save-edit-btn').style.display = 'none';
-                    alert('問題を更新しました！');
-                } else {
-                    questions.push(newQuestion);
-                    alert('問題を追加しました！');
-                }
-
-                saveQuestions();
-                resetQuestionForm();
-            } catch (error) {
-                alert('メディアの読み込みに失敗しました。デフォルトメディアを使用します。');
-                console.error(error);
-                applyMedia('question-media-preview', defaultMedia.defaultMedia.media, defaultMedia.defaultMedia.mediaType);
-            }
-        }
-
-        function resetQuestionForm() {
-            document.getElementById('new-question').value = '';
-            document.getElementById('option1').value = '';
-            document.getElementById('option2').value = '';
-            document.getElementById('correct-answer').value = '0';
-            document.getElementById('question-media').value = '';
-            document.getElementById('question-media-preview').innerHTML = '';
-            editingIndex = -1;
-            document.getElementById('save-btn').style.display = 'inline-block';
-            document.getElementById('save-edit-btn').style.display = 'none';
-        }
-
-        function editQuestion(index) {
-            const q = questions[index];
-            document.getElementById('new-question').value = q.question;
-            document.getElementById('option1').value = q.options[0];
-            document.getElementById('option2').value = q.options[1];
-            document.getElementById('correct-answer').value = q.correct;
-            applyMedia('question-media-preview', q.media, q.mediaType);
-            editingIndex = index;
-            document.getElementById('save-btn').style.display = 'none';
-            document.getElementById('save-edit-btn').style.display = 'inline-block';
-        }
-
-        function deleteQuestion(index) {
-            if (confirm('この問題を削除しますか？')) {
-                questions.splice(index, 1);
-                saveQuestions();
-                resetQuestionForm();
-            }
-        }
-
-        function toggleEditor() {
-            const editor = document.getElementById('editor-container');
-            editor.style.display = editor.style.display === 'none' ? 'block' : 'none';
-            resetQuestionForm();
-        }
-
-        function updateQuestionList() {
-            const list = document.getElementById('question-list');
-            list.innerHTML = '';
-            questions.forEach((q, index) => {
-                const div = document.createElement('div');
-                div.className = 'question-item';
-                div.innerHTML = `
-                    <span>${q.question}</span> (正解: ${q.options[q.correct]})
-                    <div>
-                        <button class="edit" onclick="editQuestion(${index})">編集</button>
-                        <button onclick="deleteQuestion(${index})">削除</button>
-                    </div>
-                `;
-                list.appendChild(div);
-            });
-        }
-
-        function updateProgressBar() {
-            const progressBar = document.getElementById('progress-bar');
-            const progressText = document.getElementById('progress-text');
-            const progress = ((currentQuestion + 1) / 5) * 100;
-            progressBar.style.width = `${progress}%`;
-            progressText.innerText = `ステージ ${currentQuestion + 1}/5`;
-        }
-
-        function startGame() {
-            if (questions.length < 5) {
-                alert('問題が5問未満です。5問以上追加してください。');
-                toggleEditor();
-                return;
-            }
-            currentQuestion = 0;
-            usedQuestions = [];
-            document.getElementById('stage').style.display = 'block';
-            document.getElementById('result').innerText = '';
-            document.getElementById('restart').style.display = 'none';
-            document.getElementsByClassName('option')[0].style.display = 'inline-block';
-            document.getElementsByClassName('option')[1].style.display = 'inline-block';
-            showQuestion();
-        }
-
-        function showQuestion() {
-            if (currentQuestion < 5) {
-                let q;
-                do {
-                    q = questions[Math.floor(Math.random() * questions.length)];
-                } while (usedQuestions.includes(q.question));
-                usedQuestions.push(q.question);
-                const questionElement = document.getElementById('question');
-                questionElement.innerText = q.question;
-                questionElement.style.color = '#000000';
-                const buttons = document.getElementsByClassName('option');
-                buttons[0].innerText = q.options[0];
-                buttons[1].innerText = q.options[1];
-                buttons[0].style.backgroundImage = '';
-                buttons[1].style.backgroundImage = '';
-                buttons[0].onclick = () => answer(0, q.correct);
-                buttons[1].onclick = () => answer(1, q.correct);
-                updateProgressBar();
-                document.addEventListener('keydown', handleKeyPress);
-            } else {
-                const questionElement = document.getElementById('question');
-                questionElement.innerText = 'ゲームクリア！';
-                questionElement.style.color = '#000000';
-                document.getElementById('result').innerText = 'おめでとう！ゴールに到達！';
-                document.getElementsByClassName('option')[0].style.display = 'none';
-                document.getElementsByClassName('option')[1].style.display = 'none';
-                document.getElementById('restart').style.display = 'block';
-                document.getElementById('stage').style.display = 'none';
-                document.removeEventListener('keydown', handleKeyPress);
-            }
-        }
-
-        function handleKeyPress(event) {
-            const q = questions.find(q => usedQuestions.includes(q.question));
-            if (!q) return;
-            if (event.keyCode === 65) { // Aキー
-                answer(0, q.correct);
-            } else if (event.keyCode === 66) { // Bキー
-                answer(1, q.correct);
-            }
-        }
-
-        function answer(option, correct) {
-            document.removeEventListener('keydown', handleKeyPress);
-            if (option === correct) {
-                currentQuestion++;
-                document.getElementById('result').innerText = '正解！次の問題へ！';
-                setTimeout(() => {
-                    document.getElementById('result').innerText = '';
-                    showQuestion();
-                }, 1000);
-            } else {
-                const questionElement = document.getElementById('question');
-                questionElement.innerText = 'ゲームオーバー！';
-                questionElement.style.color = '#000000';
-                document.getElementById('result').innerText = '不正解！ゲームオーバー！';
-                document.getElementsByClassName('option')[0].style.display = 'none';
-                document.getElementsByClassName('option')[1].style.display = 'none';
-                document.getElementById('restart').style.display = 'block';
-                document.getElementById('stage').style.display = 'none';
-            }
-        }
-
-        document.getElementById('question-media').addEventListener('change', function() {
-            updateMedia('question-media', 'question-media-preview', 'questionMedia');
+      if (fileType.startsWith('video/mp4')) {
+        videoSource.src = fileURL;
+        video.classList.remove('hidden');
+        image.classList.add('hidden');
+        video.load();
+        video.play().catch(() => {
+          mediaError.textContent = '動画の再生に失敗しました。別のMP4ファイルを選択してください。';
+          mediaError.classList.remove('hidden');
         });
+        currentBackground = { type: 'video', fileName: file.name };
+        mediaError.classList.add('hidden');
+      } else if (fileType.startsWith('image/') && ['image/jpeg', 'image/png', 'image/gif'].includes(fileType)) {
+        image.src = fileURL;
+        image.classList.remove('hidden');
+        video.classList.add('hidden');
+        currentBackground = { type: 'image', fileName: file.name };
+        mediaError.classList.add('hidden');
+      } else {
+        mediaError.textContent = 'MP4動画またはJPG/PNG/GIF画像を選択してください。';
+        mediaError.classList.remove('hidden');
+      }
+    });
 
-        document.getElementById('body-background').addEventListener('change', function() {
-            updateMedia('body-background', 'body-background-preview', 'bodyBackground');
+    // 問題と背景をインポート
+    importQuestionsInput.addEventListener('change', () => {
+      const file = importQuestionsInput.files[0];
+      if (!file) {
+        mediaError.textContent = 'JSONファイルを選択してください。';
+        mediaError.classList.remove('hidden');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const importedData = JSON.parse(e.target.result);
+          if (!Array.isArray(importedData.questions) || importedData.questions.length === 0) {
+            mediaError.textContent = '無効なJSON形式です。questions配列を指定してください。';
+            mediaError.classList.remove('hidden');
+            return;
+          }
+
+          // 問題の形式を検証
+          const isValid = importedData.questions.every(q => 
+            typeof q.question === 'string' && q.question.trim() &&
+            typeof q.answer1 === 'string' && q.answer1.trim() &&
+            typeof q.answer2 === 'string' && q.answer2.trim() &&
+            (q.correctAnswer === 1 || q.correctAnswer === 2)
+          );
+
+          if (!isValid) {
+            mediaError.textContent = '無効な問題形式です。各問題にはquestion, answer1, answer2（文字列）、およびcorrectAnswer（1または2）が必要です。';
+            mediaError.classList.remove('hidden');
+            return;
+          }
+
+          questions = importedData.questions;
+          currentQuestionIndex = Math.min(currentQuestionIndex, questions.length - 1);
+          
+          // 背景情報の処理
+          if (importedData.background && ['video', 'image'].includes(importedData.background.type)) {
+            currentBackground = { type: importedData.background.type, fileName: importedData.background.fileName };
+            importBackgroundInput.classList.remove('hidden');
+            mediaError.textContent = `背景${currentBackground.type === 'video' ? '動画' : '画像'}（${currentBackground.fileName}）を選択してください。`;
+            mediaError.classList.remove('hidden');
+          } else {
+            importBackgroundInput.classList.add('hidden');
+            currentBackground = { type: 'video', fileName: 'default.mp4' };
+            video.classList.remove('hidden');
+            image.classList.add('hidden');
+            videoSource.src = 'https://cdn.pixabay.com/video/2023/07/27/172050-848745094_large.mp4';
+            video.load();
+            video.play();
+          }
+
+          updateQuestionList();
+          updateQuestionNumberSelect();
+          updateQuestionDisplay();
+          mediaError.classList.add('hidden');
+          importQuestionsInput.value = ''; // ファイル入力をクリア
+        } catch (error) {
+          mediaError.textContent = 'JSONファイルの読み込みに失敗しました。ファイル形式を確認してください。';
+          mediaError.classList.remove('hidden');
+        }
+      };
+      reader.readAsText(file);
+    });
+
+    // 背景ファイルのインポート
+    importBackgroundInput.addEventListener('change', () => {
+      const file = importBackgroundInput.files[0];
+      if (!file) {
+        mediaError.textContent = '背景ファイルを選択してください。';
+        mediaError.classList.remove('hidden');
+        return;
+      }
+
+      const fileType = file.type;
+      const fileURL = URL.createObjectURL(file);
+
+      if (fileType.startsWith('video/mp4') && currentBackground.type === 'video') {
+        videoSource.src = fileURL;
+        video.classList.remove('hidden');
+        image.classList.add('hidden');
+        video.load();
+        video.play().catch(() => {
+          mediaError.textContent = '動画の再生に失敗しました。別のMP4ファイルを選択してください。';
+          mediaError.classList.remove('hidden');
         });
+        currentBackground.fileName = file.name;
+        mediaError.classList.add('hidden');
+        importBackgroundInput.classList.add('hidden');
+      } else if (fileType.startsWith('image/') && ['image/jpeg', 'image/png', 'image/gif'].includes(fileType) && currentBackground.type === 'image') {
+        image.src = fileURL;
+        image.classList.remove('hidden');
+        video.classList.add('hidden');
+        currentBackground.fileName = file.name;
+        mediaError.classList.add('hidden');
+        importBackgroundInput.classList.add('hidden');
+      } else {
+        mediaError.textContent = `選択したファイルが期待される形式（${currentBackground.type === 'video' ? 'MP4動画' : 'JPG/PNG/GIF画像'}）と一致しません。`;
+        mediaError.classList.remove('hidden');
+      }
+    });
 
-        document.getElementById('container-background').addEventListener('change', function() {
-            updateMedia('container-background', 'container-background-preview', 'containerBackground');
-        });
+    // 問題と背景をエクスポート
+    exportQuestionsButton.addEventListener('click', () => {
+      const exportData = {
+        questions: questions,
+        background: currentBackground
+      };
+      const jsonString = JSON.stringify(exportData, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'quiz_data.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      mediaError.textContent = '問題と背景情報をエクスポートしました。';
+      mediaError.classList.remove('hidden');
+      setTimeout(() => mediaError.classList.add('hidden'), 2000);
+    });
 
-        applyEndGameMedia();
-        applyBodyBackground();
+    // 設定フォームのトグル表示
+    toggleSettingsFormButton.addEventListener('click', () => {
+      settingsForm.classList.toggle('hidden');
+      if (!settingsForm.classList.contains('hidden')) {
         updateQuestionList();
-        startGame();
-    </script>
+        updateQuestionNumberSelect();
+      }
+    });
+
+    // 問題一覧の更新
+    function updateQuestionList() {
+      questionList.innerHTML = '';
+      questions.forEach((q, index) => {
+        const questionDiv = document.createElement('div');
+        questionDiv.className = 'bg-gray-700 p-4 rounded-lg mb-2 flex justify-between items-center';
+        questionDiv.innerHTML = `
+          <div>
+            <p class="font-semibold">問題 ${index + 1}: ${q.question}</p>
+            <p>選択肢1: ${q.answer1} ${q.correctAnswer === 1 ? '(正解)' : ''}</p>
+            <p>選択肢2: ${q.answer2} ${q.correctAnswer === 2 ? '(正解)' : ''}</p>
+          </div>
+          <button class="edit-question bg-blue-600 hover:bg-blue-800 text-white font-bold py-1 px-2 rounded-lg" data-index="${index}">変更</button>
+        `;
+        questionList.appendChild(questionDiv);
+      });
+
+      // 変更ボタンのイベントリスナー
+      document.querySelectorAll('.edit-question').forEach(button => {
+        button.addEventListener('click', () => {
+          const index = parseInt(button.getAttribute('data-index'));
+          const question = questions[index];
+          questionNumberSelect.value = index;
+          questionTextInput.value = question.question;
+          answer1TextInput.value = question.answer1;
+          answer2TextInput.value = question.answer2;
+          document.querySelector(`input[name="correct-answer"][value="${question.correctAnswer}"]`).checked = true;
+        });
+      });
+    }
+
+    // 問題番号セレクトボックスの更新
+    function updateQuestionNumberSelect() {
+      questionNumberSelect.innerHTML = '';
+      questions.forEach((_, index) => {
+        const option = document.createElement('option');
+        option.value = index;
+        option.textContent = `問題 ${index + 1}`;
+        questionNumberSelect.appendChild(option);
+      });
+    }
+
+    // 問題表示の更新
+    function updateQuestionDisplay() {
+      if (isGameOver) return;
+      const currentQuestion = questions[currentQuestionIndex];
+      questionDisplay.textContent = `問題 ${currentQuestionIndex + 1}: ${currentQuestion.question}`;
+      answer1Button.textContent = currentQuestion.answer1;
+      answer2Button.textContent = currentQuestion.answer2;
+      answer1Button.classList.remove('bg-green-600', 'bg-red-600');
+      answer1Button.classList.add('bg-blue-600', 'hover:bg-blue-800');
+      answer1Button.disabled = false;
+      answer2Button.classList.remove('bg-green-600', 'bg-red-600');
+      answer2Button.classList.add('bg-blue-600', 'hover:bg-blue-800');
+      answer2Button.disabled = false;
+      gameOverMessage.classList.add('hidden');
+      correctMessage.classList.add('hidden');
+      completeMessage.classList.add('hidden');
+      settingsForm.classList.add('hidden');
+    }
+
+    // ゲームオーバー処理
+    function showGameOver() {
+      isGameOver = true;
+      gameOverMessage.classList.remove('hidden');
+      correctMessage.classList.add('hidden');
+      completeMessage.classList.add('hidden');
+      answer1Button.disabled = true;
+      answer2Button.disabled = true;
+    }
+
+    // 正解メッセージ表示
+    function showCorrectMessage() {
+      correctMessage.classList.remove('hidden');
+      gameOverMessage.classList.add('hidden');
+      completeMessage.classList.add('hidden');
+    }
+
+    // 全問正解メッセージ表示
+    function showCompleteMessage() {
+      isGameOver = true;
+      completeMessage.classList.remove('hidden');
+      correctMessage.classList.add('hidden');
+      gameOverMessage.classList.add('hidden');
+      answer1Button.disabled = true;
+      answer2Button.disabled = true;
+    }
+
+    // ゲームリセット処理
+    tryAgainButton.addEventListener('click', () => {
+      isGameOver = false;
+      currentQuestionIndex = 0;
+      updateQuestionDisplay();
+    });
+
+    // 初期表示
+    updateQuestionDisplay();
+
+    // 問題変更処理
+    changeQuestionButton.addEventListener('click', () => {
+      const questionIndex = parseInt(questionNumberSelect.value);
+      const question = questionTextInput.value.trim();
+      const answer1 = answer1TextInput.value.trim();
+      const answer2 = answer2TextInput.value.trim();
+      const correctAnswer = parseInt(document.querySelector('input[name="correct-answer"]:checked').value);
+
+      if (!question || !answer1 || !answer2) {
+        mediaError.textContent = '問題と両方の選択肢を入力してください。';
+        mediaError.classList.remove('hidden');
+        return;
+      }
+
+      // 問題を更新
+      questions[questionIndex] = { question, answer1, answer2, correctAnswer };
+      updateQuestionList();
+      updateQuestionNumberSelect();
+      if (questionIndex === currentQuestionIndex) {
+        updateQuestionDisplay();
+      }
+
+      // フォームをクリアして非表示
+      questionTextInput.value = '';
+      answer1TextInput.value = '';
+      answer2TextInput.value = '';
+      settingsForm.classList.add('hidden');
+      mediaError.classList.add('hidden');
+    });
+
+    // クイズの回答処理
+    answer1Button.addEventListener('click', () => {
+      if (isGameOver) return;
+      const currentQuestion = questions[currentQuestionIndex];
+      answer1Button.classList.remove('bg-blue-600', 'hover:bg-blue-800');
+      answer2Button.classList.remove('bg-blue-600', 'hover:bg-blue-800');
+      if (currentQuestion.correctAnswer === 1) {
+        answer1Button.classList.add('bg-green-600');
+        answer2Button.classList.add('bg-red-600');
+        if (currentQuestionIndex < questions.length - 1) {
+          showCorrectMessage();
+          mediaError.textContent = `正解！${answer1Button.textContent}が正しい答えです。`;
+          mediaError.classList.remove('hidden');
+          setTimeout(() => {
+            currentQuestionIndex++;
+            updateQuestionDisplay();
+            mediaError.classList.add('hidden');
+          }, 1000);
+        } else {
+          showCompleteMessage();
+          mediaError.textContent = `正解！${answer1Button.textContent}が正しい答えです。全問正解！`;
+          mediaError.classList.remove('hidden');
+          setTimeout(() => mediaError.classList.add('hidden'), 2000);
+        }
+      } else {
+        answer1Button.classList.add('bg-red-600');
+        answer2Button.classList.add('bg-green-600');
+        mediaError.textContent = `不正解！正しい答えは${answer2Button.textContent}です。`;
+        mediaError.classList.remove('hidden');
+        showGameOver();
+      }
+      answer1Button.disabled = true;
+      answer2Button.disabled = true;
+    });
+
+    answer2Button.addEventListener('click', () => {
+      if (isGameOver) return;
+      const currentQuestion = questions[currentQuestionIndex];
+      answer1Button.classList.remove('bg-blue-600', 'hover:bg-blue-800');
+      answer2Button.classList.remove('bg-blue-600', 'hover:bg-blue-800');
+      if (currentQuestion.correctAnswer === 2) {
+        answer2Button.classList.add('bg-green-600');
+        answer1Button.classList.add('bg-red-600');
+        if (currentQuestionIndex < questions.length - 1) {
+          showCorrectMessage();
+          mediaError.textContent = `正解！${answer2Button.textContent}が正しい答えです。`;
+          mediaError.classList.remove('hidden');
+          setTimeout(() => {
+            currentQuestionIndex++;
+            updateQuestionDisplay();
+            mediaError.classList.add('hidden');
+          }, 1000);
+        } else {
+          showCompleteMessage();
+          mediaError.textContent = `正解！${answer2Button.textContent}が正しい答えです。全問正解！`;
+          mediaError.classAnswerList.remove('hidden');
+          setTimeout(() => mediaError.classList.add('hidden'), 2000);
+        }
+      } else {
+        answer2Button.classList.add('bg-red-600');
+        answer1Button.classList.add('bg-green-600');
+        mediaError.textContent = `不正解！正しい答えは${answer1Button.textContent}です。`;
+        mediaError.classList.remove('hidden');
+        showGameOver();
+      }
+      answer1Button.disabled = true;
+      answer2Button.disabled = true;
+    });
+  </script>
 </body>
 </html>
